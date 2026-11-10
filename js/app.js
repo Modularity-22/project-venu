@@ -1,5 +1,5 @@
-// Project Venu - High-Fidelity Reactive Controller for Mobile
-// Pure Native Canvas (Zero External Dependencies) + Live Streaming Telemetry
+// Project Venu - Real Data Application Controller
+// Shows Strictly Real Hardware Readings from Garmin Venu 3
 
 document.addEventListener("DOMContentLoaded", () => {
   initDate();
@@ -8,12 +8,9 @@ document.addEventListener("DOMContentLoaded", () => {
   bindReactiveState();
   initInteractiveEvents();
 
-  // Start live telemetry streaming by default
-  startLiveTelemetry();
-
-  // Attempt auto-reconnect if device was previously paired
+  // Automatically detect and connect to paired Garmin watch
   if (window.BLEController) {
-    window.BLEController.autoReconnect();
+    window.BLEController.autoDetectAndConnect();
   }
 });
 
@@ -23,7 +20,7 @@ function initDate() {
   document.getElementById("header-date").textContent = d.toLocaleDateString('en-US', options);
 }
 
-// Activity Rings Constants
+// Activity Rings Geometry Constants
 const R_MOVE = 86;
 const R_EXER = 63;
 const R_STAND = 40;
@@ -39,10 +36,15 @@ function initRingsGeometry() {
   m.style.strokeDasharray = `${C_MOVE}`;
   e.style.strokeDasharray = `${C_EXER}`;
   s.style.strokeDasharray = `${C_STAND}`;
+
+  // Start with 0 progress
+  m.style.strokeDashoffset = `${C_MOVE}`;
+  e.style.strokeDashoffset = `${C_EXER}`;
+  s.style.strokeDashoffset = `${C_STAND}`;
 }
 
 // -------------------------------------------------------------
-// Pure Native Canvas Heart Rate Graph with Touch Scrubbing
+// Pure Native Canvas Heart Rate Graph (Real Hardware Points Only)
 // -------------------------------------------------------------
 class NativeHrChart {
   constructor(canvasId) {
@@ -82,16 +84,36 @@ class NativeHrChart {
 
     ctx.clearRect(0, 0, w, h);
 
-    if (!pts || pts.length < 2) return;
+    // If no real readings recorded yet
+    if (!pts || pts.length === 0) {
+      ctx.fillStyle = "#8E8E93";
+      ctx.font = "600 13px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Waiting for Garmin Venu 3 readings...", w / 2, h / 2);
+      return;
+    }
 
-    const minVal = 40;
-    const maxVal = 180;
-    const valRange = maxVal - minVal;
+    if (pts.length === 1) {
+      ctx.fillStyle = "#FF2D55";
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "700 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`${pts[0].val} BPM`, w / 2, h / 2 - 12);
+      return;
+    }
 
-    // Subtle background guidelines
+    const vals = pts.map(p => p.val);
+    const minVal = Math.max(30, Math.min(...vals) - 5);
+    const maxVal = Math.min(220, Math.max(...vals) + 10);
+    const valRange = Math.max(20, maxVal - minVal);
+
+    // Guidelines
     ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
     ctx.lineWidth = 1;
-    [60, 100, 140].forEach(bpm => {
+    [minVal, Math.round((minVal + maxVal) / 2), maxVal].forEach(bpm => {
       const y = h - ((bpm - minVal) / valRange) * (h - 20) - 10;
       ctx.beginPath();
       ctx.moveTo(0, y);
@@ -99,14 +121,13 @@ class NativeHrChart {
       ctx.stroke();
     });
 
-    // Compute pixel coordinates
     const coords = pts.map((p, i) => {
       const x = (i / (pts.length - 1)) * w;
       const y = h - ((p.val - minVal) / valRange) * (h - 24) - 12;
       return { x, y, val: p.val, time: p.time };
     });
 
-    // Area Fill Gradient (Ruby Red)
+    // Ruby Area Fill
     const gradient = ctx.createLinearGradient(0, 0, 0, h);
     gradient.addColorStop(0, "rgba(255, 45, 85, 0.45)");
     gradient.addColorStop(1, "rgba(255, 45, 85, 0.0)");
@@ -138,10 +159,9 @@ class NativeHrChart {
     ctx.lineWidth = 2.4;
     ctx.stroke();
 
-    // Touch Scrubbing Indicator
+    // Touch Scrubbing Point
     if (this.scrubbingIndex !== null && coords[this.scrubbingIndex]) {
       const s = coords[this.scrubbingIndex];
-      // Vertical scrub line
       ctx.beginPath();
       ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
       ctx.lineWidth = 1.5;
@@ -151,7 +171,6 @@ class NativeHrChart {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Point circle
       ctx.beginPath();
       ctx.arc(s.x, s.y, 5.5, 0, Math.PI * 2);
       ctx.fillStyle = "#FFFFFF";
@@ -164,6 +183,7 @@ class NativeHrChart {
 
   bindTouchEvents() {
     const handleMove = (clientX) => {
+      if (!this.points || this.points.length === 0) return;
       const rect = this.canvas.getBoundingClientRect();
       const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
       const pct = x / rect.width;
@@ -182,21 +202,12 @@ class NativeHrChart {
       this.scrubbingIndex = null;
       this.render();
       document.getElementById("hr-scrub-time").textContent = "Live";
-      document.getElementById("hr-display-bpm").textContent = AppStore.state.heartRate.current;
+      document.getElementById("hr-display-bpm").textContent = AppStore.state.heartRate.current !== null ? AppStore.state.heartRate.current : "--";
     };
 
-    // Touch Events
     this.canvas.addEventListener("touchstart", (e) => handleMove(e.touches[0].clientX), { passive: true });
     this.canvas.addEventListener("touchmove", (e) => handleMove(e.touches[0].clientX), { passive: true });
     this.canvas.addEventListener("touchend", handleEnd);
-
-    // Mouse Events
-    this.canvas.addEventListener("mousedown", (e) => handleMove(e.clientX));
-    this.canvas.addEventListener("mousemove", (e) => {
-      if (e.buttons === 1) handleMove(e.clientX);
-    });
-    this.canvas.addEventListener("mouseup", handleEnd);
-    this.canvas.addEventListener("mouseleave", handleEnd);
   }
 }
 
@@ -204,6 +215,8 @@ let nativeHrChart = null;
 
 function initNativeCharts() {
   nativeHrChart = new NativeHrChart("hrNativeCanvas");
+  nativeHrChart.render();
+
   window.addEventListener("resize", () => {
     if (nativeHrChart) {
       nativeHrChart.setupRetina();
@@ -213,9 +226,6 @@ function initNativeCharts() {
   });
 }
 
-// -------------------------------------------------------------
-// Native Sleep Hypnogram Canvas
-// -------------------------------------------------------------
 function renderSleepNativeCanvas(sleep) {
   const canvas = document.getElementById("sleepNativeCanvas");
   if (!canvas) return;
@@ -230,8 +240,15 @@ function renderSleepNativeCanvas(sleep) {
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
   ctx.scale(dpr, dpr);
-
   ctx.clearRect(0, 0, w, h);
+
+  if (!sleep.timeline || sleep.timeline.length === 0) {
+    ctx.fillStyle = "#8E8E93";
+    ctx.font = "600 13px -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Sync watch to view sleep stages", w / 2, h / 2);
+    return;
+  }
 
   const stageY = { "Awake": 12, "REM": 32, "Core": 52, "Deep": 72 };
   const stageColors = { "Awake": "#8E8E93", "REM": "#BF5AF2", "Core": "#0A84FF", "Deep": "#0040DD" };
@@ -280,47 +297,53 @@ function renderSleepNativeCanvas(sleep) {
 }
 
 // -------------------------------------------------------------
-// Reactive State Bindings
+// Bind Reactive State (Displays Actual Device Data Only)
 // -------------------------------------------------------------
 function bindReactiveState() {
   const store = window.AppStore;
 
   // 1. Activity Rings
   store.subscribe("rings", (rings) => {
-    const mPct = rings.move.current / rings.move.goal;
-    const ePct = rings.exercise.current / rings.exercise.goal;
-    const sPct = rings.stand.current / rings.stand.goal;
+    const m = rings.move;
+    const e = rings.exercise;
+    const s = rings.stand;
+
+    const mPct = m.goal > 0 ? m.current / m.goal : 0;
+    const ePct = e.goal > 0 ? e.current / e.goal : 0;
+    const sPct = s.goal > 0 ? s.current / s.goal : 0;
 
     document.getElementById("arc-move").style.strokeDashoffset = Math.max(0, C_MOVE * (1 - mPct));
     document.getElementById("arc-exercise").style.strokeDashoffset = Math.max(0, C_EXER * (1 - ePct));
     document.getElementById("arc-stand").style.strokeDashoffset = Math.max(0, C_STAND * (1 - sPct));
 
-    document.getElementById("txt-move-cur").textContent = rings.move.current;
-    document.getElementById("txt-move-goal").textContent = rings.move.goal;
+    document.getElementById("txt-move-cur").textContent = m.current;
+    document.getElementById("txt-move-goal").textContent = m.goal;
     document.getElementById("txt-move-pct").textContent = `${Math.round(mPct * 100)}%`;
 
-    document.getElementById("txt-exer-cur").textContent = rings.exercise.current;
-    document.getElementById("txt-exer-goal").textContent = rings.exercise.goal;
+    document.getElementById("txt-exer-cur").textContent = e.current;
+    document.getElementById("txt-exer-goal").textContent = e.goal;
     document.getElementById("txt-exer-pct").textContent = `${Math.round(ePct * 100)}%`;
 
-    document.getElementById("txt-stand-cur").textContent = rings.stand.current;
-    document.getElementById("txt-stand-goal").textContent = rings.stand.goal;
+    document.getElementById("txt-stand-cur").textContent = s.current;
+    document.getElementById("txt-stand-goal").textContent = s.goal;
     document.getElementById("txt-stand-pct").textContent = `${Math.round(sPct * 100)}%`;
   });
 
   // 2. Heart Rate
   store.subscribe("heartRate", (hr) => {
-    document.getElementById("live-bpm-val").textContent = hr.current;
-    document.getElementById("hr-display-bpm").textContent = hr.current;
-    document.getElementById("hr-resting-txt").textContent = hr.resting;
-    document.getElementById("hr-walking-txt").textContent = hr.walkingAvg;
-    document.getElementById("hr-range-txt").textContent = `${hr.min}–${hr.max}`;
+    const curVal = hr.current !== null ? hr.current : "--";
+    document.getElementById("live-bpm-val").textContent = curVal;
+    document.getElementById("hr-display-bpm").textContent = curVal;
+    document.getElementById("hr-resting-txt").textContent = hr.resting !== null ? hr.resting : "--";
+    document.getElementById("hr-walking-txt").textContent = hr.walkingAvg !== null ? hr.walkingAvg : "--";
+    document.getElementById("hr-range-txt").textContent = (hr.min !== null && hr.max !== null) ? `${hr.min}–${hr.max}` : "--";
 
-    // Heartbeat pulse trigger
-    const heart = document.getElementById("heart-pulse-icon");
-    heart.classList.remove("beat");
-    void heart.offsetWidth;
-    heart.classList.add("beat");
+    if (hr.current !== null) {
+      const heart = document.getElementById("heart-pulse-icon");
+      heart.classList.remove("beat");
+      void heart.offsetWidth;
+      heart.classList.add("beat");
+    }
 
     if (nativeHrChart) {
       nativeHrChart.setPoints(hr.dayCurve);
@@ -329,7 +352,7 @@ function bindReactiveState() {
 
   // 3. Sleep
   store.subscribe("sleep", (sleep) => {
-    document.getElementById("sleep-score-txt").textContent = sleep.score;
+    document.getElementById("sleep-score-txt").textContent = sleep.score !== null ? sleep.score : "--";
     document.getElementById("sleep-label-txt").textContent = sleep.scoreLabel;
     document.getElementById("sleep-asleep-txt").textContent = sleep.timeAsleep;
     document.getElementById("sleep-inbed-txt").textContent = sleep.timeInBed;
@@ -339,15 +362,15 @@ function bindReactiveState() {
 
   // 4. Body Battery & Stress
   store.subscribe("bodyBattery", (bb) => {
-    document.getElementById("bb-val-txt").textContent = bb.current;
-    document.getElementById("bb-meter-fill").style.width = `${bb.current}%`;
+    document.getElementById("bb-val-txt").textContent = bb.current !== null ? bb.current : "--";
+    document.getElementById("bb-meter-fill").style.width = bb.current !== null ? `${bb.current}%` : "0%";
     document.getElementById("bb-charge-txt").textContent = bb.charged;
     document.getElementById("bb-drain-txt").textContent = bb.drained;
     document.getElementById("bb-status-txt").textContent = bb.status;
   });
 
   store.subscribe("stress", (st) => {
-    document.getElementById("stress-desc-txt").textContent = `${st.label} (${st.score})`;
+    document.getElementById("stress-desc-txt").textContent = st.score !== null ? `${st.label} (${st.score})` : "--";
   });
 
   // 5. Workouts
@@ -363,12 +386,13 @@ function bindReactiveState() {
     const status = document.getElementById("ble-status");
 
     name.textContent = dev.name;
-    batt.textContent = `${dev.battery}%`;
+    batt.textContent = dev.battery !== null ? `${dev.battery}%` : "--";
     status.textContent = dev.statusMessage;
 
     if (dev.connected) {
       btn.textContent = "Connected";
       btn.classList.add("connected");
+      document.getElementById("live-hr-badge").style.display = "flex";
     } else {
       btn.textContent = "Connect Watch";
       btn.classList.remove("connected");
@@ -388,6 +412,17 @@ function bindReactiveState() {
 function renderWorkoutsMobile(wList) {
   const container = document.getElementById("workout-items-container");
   container.innerHTML = "";
+
+  if (!wList || wList.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding: 20px; color:#8E8E93; font-size: 0.85rem;">
+        No workout logs recorded yet. Sync your watch to see recorded activities.
+      </div>
+    `;
+    document.getElementById("workouts-count-pill").textContent = "0 total";
+    return;
+  }
+
   document.getElementById("workouts-count-pill").textContent = `${wList.length} total`;
 
   wList.forEach(w => {
@@ -416,79 +451,9 @@ function renderWorkoutsMobile(wList) {
 }
 
 // -------------------------------------------------------------
-// Live Telemetry Engine (Active Streaming by default)
-// -------------------------------------------------------------
-let liveTimer = null;
-let isStreaming = true;
-
-function startLiveTelemetry() {
-  if (liveTimer) return;
-  isStreaming = true;
-  document.getElementById("stream-dot").classList.add("active");
-  document.getElementById("stream-label").textContent = "LIVE STREAM";
-
-  liveTimer = setInterval(() => {
-    // Natural heart rate drift
-    const base = AppStore.state.heartRate.current;
-    const delta = (Math.random() - 0.48) * 3;
-    let nextBpm = Math.round(base + delta);
-    nextBpm = Math.max(52, Math.min(178, nextBpm));
-
-    AppStore.state.heartRate.current = nextBpm;
-    document.getElementById("hr-slider").value = nextBpm;
-    document.getElementById("sim-slider-val").textContent = `${nextBpm} BPM`;
-
-    // Slowly increment Move calories on workout BPMs
-    if (nextBpm > 100) {
-      AppStore.state.rings.move.current += 1;
-    }
-  }, 1200);
-}
-
-function stopLiveTelemetry() {
-  if (liveTimer) {
-    clearInterval(liveTimer);
-    liveTimer = null;
-  }
-  isStreaming = false;
-  document.getElementById("stream-dot").classList.remove("active");
-  document.getElementById("stream-label").textContent = "PAUSED";
-}
-
-// -------------------------------------------------------------
-// Interactive Events & Bottom Tabs
+// Interactive Events
 // -------------------------------------------------------------
 function initInteractiveEvents() {
-  // Slider reactive test control
-  const slider = document.getElementById("hr-slider");
-  const sliderVal = document.getElementById("sim-slider-val");
-
-  slider.addEventListener("input", (e) => {
-    const val = parseInt(e.target.value);
-    sliderVal.textContent = `${val} BPM`;
-    AppStore.state.heartRate.current = val;
-
-    // Reactively update min/max if exceeded
-    if (val > AppStore.state.heartRate.max) AppStore.state.heartRate.max = val;
-    if (val < AppStore.state.heartRate.min) AppStore.state.heartRate.min = val;
-
-    // Trigger haptic vibration on mobile
-    if (navigator.vibrate && val > 150) {
-      navigator.vibrate(25);
-    }
-  });
-
-  // Toggle Live Streaming button
-  const streamBtn = document.getElementById("btn-stream-toggle");
-  streamBtn.addEventListener("click", () => {
-    if (isStreaming) {
-      stopLiveTelemetry();
-    } else {
-      startLiveTelemetry();
-    }
-  });
-
-  // Connect BLE Button
   const btnConnect = document.getElementById("btn-connect-ble");
   btnConnect.addEventListener("click", () => {
     if (window.BLEController) {
@@ -500,7 +465,7 @@ function initInteractiveEvents() {
     }
   });
 
-  // Bottom Tabs Scrolling
+  // Tab Navigation
   const tabButtons = document.querySelectorAll(".tab-item");
   tabButtons.forEach(btn => {
     btn.addEventListener("click", () => {
@@ -514,7 +479,7 @@ function initInteractiveEvents() {
     });
   });
 
-  // Modal Dialog
+  // Modal Dialog for .FIT import
   const modal = document.getElementById("import-modal");
   const openBtn = document.getElementById("btn-open-import");
   const closeBtn = document.getElementById("modal-close-btn");
@@ -537,7 +502,7 @@ function initInteractiveEvents() {
         try {
           const res = BrowserFitParser.parseArrayBuffer(evt.target.result);
           BrowserFitParser.applyToStore(res, file.name);
-          document.getElementById("modal-status").innerHTML = `<span style="color:#30D158">Decoded ${file.name}</span>`;
+          document.getElementById("modal-status").innerHTML = `<span style="color:#30D158">Successfully parsed ${file.name}</span>`;
           setTimeout(() => modal.classList.remove("active"), 1200);
         } catch (err) {
           document.getElementById("modal-status").innerHTML = `<span style="color:#FF453A">Error: ${err.message}</span>`;

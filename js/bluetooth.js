@@ -1,5 +1,5 @@
-// Project Venu - Web Bluetooth & Garmin Venu 3 BLE Controller
-// Standard Bluetooth SIG GATT: Heart Rate (0x180D), Battery (0x180F), Device Info (0x180A)
+// Project Venu - Garmin Venu 3 Real Hardware Bluetooth Controller
+// Reads LIVE Vitals from Watch via Standard Bluetooth SIG GATT Services
 
 class GarminBLEController {
   constructor() {
@@ -7,50 +7,53 @@ class GarminBLEController {
     this.server = null;
     this.hrCharacteristic = null;
     this.batteryCharacteristic = null;
-    this.isSimulating = false;
-    this.simulationInterval = null;
+    this.reconnectTimer = null;
   }
 
   isSupported() {
     return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
   }
 
-  // Check if device was previously paired and auto-reconnect
-  async autoReconnect() {
-    if (!this.isSupported() || !navigator.bluetooth.getDevices) {
+  // Automatic Background Detection & Reconnect
+  async autoDetectAndConnect() {
+    if (!this.isSupported()) {
+      AppStore.state.device.statusMessage = "Web Bluetooth not supported in this browser (use Chrome or Bluefy on iOS).";
       return false;
     }
 
-    try {
-      const devices = await navigator.bluetooth.getDevices();
-      const garminDevice = devices.find(d => 
-        (d.name && (d.name.includes('Garmin') || d.name.includes('Venu'))) ||
-        (d.id && localStorage.getItem('venu_device_id') === d.id)
-      );
+    // Check if browser has persistent permission for previously paired devices
+    if (navigator.bluetooth.getDevices) {
+      try {
+        const devices = await navigator.bluetooth.getDevices();
+        const savedId = localStorage.getItem('venu_device_id');
+        const garmin = devices.find(d => 
+          (d.id && d.id === savedId) || 
+          (d.name && (d.name.includes('Garmin') || d.name.includes('Venu')))
+        );
 
-      if (garminDevice) {
-        console.log("Found previously paired Garmin device:", garminDevice.name);
-        AppStore.state.device.statusMessage = `Reconnecting to ${garminDevice.name}...`;
-        return await this.connectDevice(garminDevice);
+        if (garmin) {
+          console.log("Auto-detected paired Garmin device:", garmin.name || garmin.id);
+          AppStore.state.device.statusMessage = `Connecting to paired ${garmin.name || 'Garmin Watch'}...`;
+          return await this.connectDevice(garmin);
+        }
+      } catch (e) {
+        console.warn("Auto-detect getDevices failed:", e);
       }
-    } catch (err) {
-      console.warn("Auto-reconnect check:", err);
     }
+
+    AppStore.state.device.statusMessage = "Watch detected. Tap 'Connect Watch' to start live stream.";
     return false;
   }
 
-  // Request user authorization & scan for Garmin Bluetooth broadcast
+  // User-Initiated Device Scan / Connect
   async requestConnection() {
     if (!this.isSupported()) {
-      AppStore.state.device.statusMessage = "iOS Safari blocks BLE. Use 'Bluefy' app or enjoy the live stream!";
-      if (window.startLiveTelemetry) {
-        window.startLiveTelemetry();
-      }
+      alert("Web Bluetooth is not supported in this browser. On iPhone/iOS, please open this link inside the free 'Bluefy' or 'WebBLE' browser from the App Store. On Android, use Chrome.");
       return;
     }
 
     AppStore.state.device.connecting = true;
-    AppStore.state.device.statusMessage = "Scanning for Garmin Venu 3...";
+    AppStore.state.device.statusMessage = "Opening Bluetooth selector... Select your Garmin Venu 3.";
 
     try {
       const device = await navigator.bluetooth.requestDevice({
@@ -72,8 +75,8 @@ class GarminBLEController {
       await this.connectDevice(device);
     } catch (err) {
       AppStore.state.device.connecting = false;
-      AppStore.state.device.statusMessage = "Pairing cancelled or timed out.";
-      console.error("Bluetooth pairing error:", err);
+      AppStore.state.device.statusMessage = "Pairing cancelled or watch not broadcasting. Ensure 'Broadcast Heart Rate' is ON.";
+      console.warn("Bluetooth requestDevice error:", err);
     }
   }
 
@@ -83,25 +86,26 @@ class GarminBLEController {
 
     AppStore.state.device.connecting = true;
     AppStore.state.device.name = device.name || "Garmin Venu 3";
-    AppStore.state.device.statusMessage = "Connecting to GATT services...";
+    AppStore.state.device.statusMessage = "Connecting to watch GATT services...";
 
     try {
       this.server = await device.gatt.connect();
 
-      // 1. Heart Rate Service
+      // 1. Read Real Heart Rate Service
       try {
         const hrService = await this.server.getPrimaryService('heart_rate');
         this.hrCharacteristic = await hrService.getCharacteristic('heart_rate_measurement');
         await this.hrCharacteristic.startNotifications();
         this.hrCharacteristic.addEventListener('characteristicvaluechanged', (e) => this.handleHeartRate(e));
+        console.log("Subscribed to Garmin Heart Rate notifications!");
       } catch (hrErr) {
-        console.warn("Heart rate service error:", hrErr);
+        console.warn("Heart rate service subscription warning:", hrErr);
       }
 
-      // 2. Battery Service
+      // 2. Read Real Battery Level
       try {
-        const batteryService = await this.server.getPrimaryService('battery_service');
-        this.batteryCharacteristic = await batteryService.getCharacteristic('battery_level');
+        const battService = await this.server.getPrimaryService('battery_service');
+        this.batteryCharacteristic = await battService.getCharacteristic('battery_level');
         const bVal = await this.batteryCharacteristic.readValue();
         const bLevel = bVal.getUint8(0);
         AppStore.state.device.battery = bLevel;
@@ -110,10 +114,10 @@ class GarminBLEController {
           AppStore.state.device.battery = e.target.value.getUint8(0);
         });
       } catch (bErr) {
-        console.warn("Battery service skip:", bErr);
+        console.warn("Battery level read warning:", bErr);
       }
 
-      // 3. Device Info (Model Name)
+      // 3. Read Device Info
       try {
         const infoService = await this.server.getPrimaryService('device_information');
         const modelChar = await infoService.getCharacteristic('model_number_string');
@@ -124,20 +128,21 @@ class GarminBLEController {
           AppStore.state.device.name = modelStr;
         }
       } catch (iErr) {
-        console.log("Device info read skip:", iErr);
+        // Optional
       }
 
       AppStore.state.device.connected = true;
       AppStore.state.device.connecting = false;
       AppStore.state.device.connectionType = "bluetooth";
-      AppStore.state.device.statusMessage = `Connected to ${device.name}`;
+      AppStore.state.device.statusMessage = `Connected to ${device.name || 'Garmin Venu 3'} • Live Data Active`;
+      AppStore.state.ui.hasRealData = true;
 
       return true;
     } catch (err) {
       console.error("GATT connection failed:", err);
       AppStore.state.device.connected = false;
       AppStore.state.device.connecting = false;
-      AppStore.state.device.statusMessage = "Connection failed. Please ensure watch is nearby.";
+      AppStore.state.device.statusMessage = "Connection failed. Please ensure watch is nearby with Broadcast Heart Rate ON.";
       return false;
     }
   }
@@ -158,30 +163,48 @@ class GarminBLEController {
 
     const contactDetected = (flags & 0x06) === 0x06;
 
-    // Update Reactive App Store
+    // Real Hardware Heart Rate Record
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
     AppStore.state.device.liveHr = hr;
     AppStore.state.device.sensorContact = contactDetected;
     AppStore.state.device.lastBeat = Date.now();
     AppStore.state.heartRate.current = hr;
 
-    if (hr < AppStore.state.heartRate.min && hr > 40) {
+    // Real Min / Max tracking
+    if (AppStore.state.heartRate.min === null || hr < AppStore.state.heartRate.min) {
       AppStore.state.heartRate.min = hr;
     }
-    if (hr > AppStore.state.heartRate.max) {
+    if (AppStore.state.heartRate.max === null || hr > AppStore.state.heartRate.max) {
       AppStore.state.heartRate.max = hr;
     }
 
-    if (hr > 100) {
+    // Record Real Day Curve Point
+    const curve = [...AppStore.state.heartRate.dayCurve];
+    curve.push({ time: timeStr, val: hr });
+    if (curve.length > 50) curve.shift(); // Keep last 50 real readings for responsive charting
+    AppStore.state.heartRate.dayCurve = curve;
+
+    // Real Live History Buffer
+    const hist = [...AppStore.state.heartRate.liveHistory];
+    hist.push(hr);
+    if (hist.length > 20) hist.shift();
+    AppStore.state.heartRate.liveHistory = hist;
+
+    // Update Move Calories from real heart rate effort
+    if (hr > 90) {
       AppStore.state.rings.move.current += 1;
     }
 
-    if (navigator.vibrate && hr > 145) {
+    // Haptic feedback on phone
+    if (navigator.vibrate && hr > 150) {
       navigator.vibrate(20);
     }
   }
 
   onDisconnected() {
-    console.warn("Garmin device disconnected.");
+    console.warn("Garmin Venu 3 disconnected.");
     AppStore.state.device.connected = false;
     AppStore.state.device.connecting = false;
     AppStore.state.device.statusMessage = "Watch disconnected. Tap to reconnect.";

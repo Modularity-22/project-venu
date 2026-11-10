@@ -11,7 +11,6 @@
   --text-secondary: #8E8E93;
   --text-tertiary: #636366;
   
-  /* Apple Activity Ring Colors */
   --ring-move: #FA114F;
   --ring-move-dark: #3F0013;
   --ring-exercise: #A4FF00;
@@ -19,7 +18,6 @@
   --ring-stand: #00F0FF;
   --ring-stand-dark: #00373B;
   
-  /* Apple Health Accents */
   --tint-red: #FF2D55;
   --tint-purple: #BF5AF2;
   --tint-blue: #0A84FF;
@@ -77,51 +75,12 @@ html, body {
   letter-spacing: 0.06em;
 }
 
-.header-pills {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.live-stream-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--card-surface);
-  border: 1px solid var(--card-border);
-  color: var(--text-white);
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-}
-
-.live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #8E8E93;
-}
-
-.live-dot.active {
-  background: #30D158;
-  box-shadow: 0 0 8px #30D158;
-  animation: pulse-active 1.4s infinite;
-}
-
-@keyframes pulse-active {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
-}
-
 .icon-circle-btn {
   background: var(--card-surface);
   border: 1px solid var(--card-border);
   color: var(--text-white);
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -183,7 +142,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .ble-left {
@@ -246,33 +205,14 @@ html, body {
   color: #30D158;
 }
 
-/* Reactive Control Slider */
-.reactive-controller {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 14px;
-  padding: 10px 14px;
-  margin-bottom: 6px;
-}
-
-.ctrl-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.74rem;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-}
-
-.ctrl-header strong {
-  color: var(--tint-red);
-  font-size: 0.82rem;
-}
-
-.ios-slider {
-  width: 100%;
-  accent-color: var(--tint-red);
-  height: 6px;
-  cursor: pointer;
+.ble-hint-box {
+  background: rgba(10, 132, 255, 0.08);
+  border: 1px solid rgba(10, 132, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  color: #64D2FF;
+  line-height: 1.4;
 }
 
 /* Cards Stack */
@@ -435,10 +375,6 @@ html, body {
   font-weight: 800;
 }
 
-.pct-gold {
-  color: var(--tint-gold);
-}
-
 /* CARD 2: Heart Rate */
 .scrub-indicator {
   text-align: right;
@@ -511,14 +447,6 @@ html, body {
   margin-top: 6px;
 }
 
-.scrub-hint {
-  display: block;
-  font-size: 0.68rem;
-  color: var(--text-secondary);
-  text-align: center;
-  margin-top: 6px;
-}
-
 /* CARD 3: Sleep */
 .sleep-score-pill {
   background: rgba(191, 90, 242, 0.18);
@@ -555,36 +483,6 @@ html, body {
   color: var(--tint-green);
 }
 
-.hypno-legend-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.color-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: 3px;
-}
-
-.sleep-stage-bar {
-  display: flex;
-  height: 12px;
-  border-radius: 6px;
-  overflow: hidden;
-  gap: 2px;
-  margin-bottom: 10px;
-}
-
-.s-bar-chunk {
-  height: 100%;
-}
-
 .sleep-canvas-container {
   background: var(--card-elevated);
   border-radius: 14px;
@@ -594,14 +492,6 @@ html, body {
 #sleepNativeCanvas {
   width: 100%;
   display: block;
-}
-
-.sleep-timeline-axis {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.65rem;
-  color: var(--text-tertiary);
-  margin-top: 6px;
 }
 
 /* CARD 4: Recovery & Body Battery */
@@ -645,78 +535,9 @@ html, body {
 
 .stress-head-line {
   font-size: 0.8rem;
-  margin-bottom: 8px;
 }
 
-.stress-quad-bar {
-  display: flex;
-  height: 10px;
-  border-radius: 5px;
-  overflow: hidden;
-  gap: 2px;
-}
-
-.q-chunk.q-rest { background: #30D158; }
-.q-chunk.q-low { background: #64D2FF; }
-.q-chunk.q-med { background: #FF9F0A; }
-.q-chunk.q-high { background: #FF453A; }
-
-.stress-row-legend {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.68rem;
-  color: var(--text-secondary);
-  font-weight: 600;
-  margin-top: 8px;
-}
-
-.q-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: 2px;
-}
-
-.dot-rest { background: #30D158; }
-.dot-low { background: #64D2FF; }
-.dot-med { background: #FF9F0A; }
-.dot-high { background: #FF453A; }
-
-/* CARD 5: Vitals Overview 2x2 Grid */
-.vitals-tiles-2x2 {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-.v-tile {
-  background: var(--card-elevated);
-  border-radius: 14px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-}
-
-.v-caption {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.v-main-num {
-  font-size: 1.35rem;
-  font-weight: 800;
-  margin: 4px 0 2px 0;
-}
-
-.v-footnote {
-  font-size: 0.68rem;
-  color: var(--text-tertiary);
-  font-weight: 500;
-}
-
-/* CARD 6: Workouts List */
+/* Workouts List */
 .workouts-count-pill {
   background: var(--card-elevated);
   font-size: 0.72rem;
