@@ -1,0 +1,9 @@
+{
+  "name": "Project Venu - Apple Health Dashboard",
+  "short_name": "Project Venu",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "description": "Garmin Venu 3 real-time Bluetooth health & vital log dashboard with Apple Health & Fitness visuals."
+}
