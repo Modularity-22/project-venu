@@ -1,248 +1,241 @@
-// Project Venu - Main Reactive Application Controller
-// Reactive Apple Health & Fitness Experience with Live Garmin Venu 3 BLE
+// Project Venu - High-Fidelity Reactive Controller for Mobile
+// Pure Native Canvas (Zero External Dependencies) + Live Streaming Telemetry
 
 document.addEventListener("DOMContentLoaded", () => {
-  setupDate();
-  setupRings();
-  bindReactiveUI();
-  setupEventListeners();
+  initDate();
+  initRingsGeometry();
+  initNativeCharts();
+  bindReactiveState();
+  initInteractiveEvents();
 
-  // Try auto-reconnect if already paired
+  // Start live telemetry streaming by default
+  startLiveTelemetry();
+
+  // Attempt auto-reconnect if device was previously paired
   if (window.BLEController) {
     window.BLEController.autoReconnect();
   }
 });
 
-function setupDate() {
+function initDate() {
   const options = { weekday: 'long', month: 'long', day: 'numeric' };
   const d = new Date();
   document.getElementById("header-date").textContent = d.toLocaleDateString('en-US', options);
 }
 
-// Activity Rings Geometry Constants
-const R_MOVE = 95;
-const R_EXERCISE = 70;
-const R_STAND = 45;
+// Activity Rings Constants
+const R_MOVE = 86;
+const R_EXER = 63;
+const R_STAND = 40;
 const C_MOVE = 2 * Math.PI * R_MOVE;
-const C_EXER = 2 * Math.PI * R_EXERCISE;
+const C_EXER = 2 * Math.PI * R_EXER;
 const C_STAND = 2 * Math.PI * R_STAND;
 
-function setupRings() {
-  const moveArc = document.getElementById("ring-move-arc");
-  const exerArc = document.getElementById("ring-exercise-arc");
-  const standArc = document.getElementById("ring-stand-arc");
+function initRingsGeometry() {
+  const m = document.getElementById("arc-move");
+  const e = document.getElementById("arc-exercise");
+  const s = document.getElementById("arc-stand");
 
-  moveArc.style.strokeDasharray = `${C_MOVE}`;
-  exerArc.style.strokeDasharray = `${C_EXER}`;
-  standArc.style.strokeDasharray = `${C_STAND}`;
+  m.style.strokeDasharray = `${C_MOVE}`;
+  e.style.strokeDasharray = `${C_EXER}`;
+  s.style.strokeDasharray = `${C_STAND}`;
 }
 
-let hrChart = null;
+// -------------------------------------------------------------
+// Pure Native Canvas Heart Rate Graph with Touch Scrubbing
+// -------------------------------------------------------------
+class NativeHrChart {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext("2d");
+    this.points = [];
+    this.scrubbingIndex = null;
 
-// Bind DOM to Reactive Store
-function bindReactiveUI() {
-  const store = window.AppStore;
-
-  // 1. Device & Bluetooth State
-  store.subscribe("device", (dev) => {
-    const pill = document.getElementById("device-status-pill");
-    const dot = document.getElementById("status-dot");
-    const nameEl = document.getElementById("device-name");
-    const subMsg = document.getElementById("device-status-msg");
-    const battEl = document.getElementById("device-battery-pct");
-    const liveHrPill = document.getElementById("live-hr-indicator");
-
-    nameEl.textContent = dev.name;
-    subMsg.textContent = dev.statusMessage;
-
-    if (dev.connected) {
-      dot.className = "status-dot connected";
-      pill.classList.add("active");
-      document.getElementById("btn-connect-ble").textContent = "Connected";
-      document.getElementById("btn-connect-ble").classList.add("btn-connected");
-      battEl.textContent = `${dev.battery}%`;
-      liveHrPill.style.display = "inline-flex";
-      document.getElementById("pill-live-bpm").textContent = dev.liveHr;
-    } else if (dev.connecting) {
-      dot.className = "status-dot connecting";
-      document.getElementById("btn-connect-ble").textContent = "Connecting...";
-      liveHrPill.style.display = "none";
-    } else {
-      dot.className = "status-dot disconnected";
-      pill.classList.remove("active");
-      document.getElementById("btn-connect-ble").textContent = "Connect Watch";
-      document.getElementById("btn-connect-ble").classList.remove("btn-connected");
-      liveHrPill.style.display = "none";
-    }
-  });
-
-  // 2. Rings State
-  store.subscribe("rings", (rings) => {
-    const m = rings.move;
-    const e = rings.exercise;
-    const s = rings.stand;
-
-    const mPct = m.current / m.goal;
-    const ePct = e.current / e.goal;
-    const sPct = s.current / s.goal;
-
-    document.getElementById("ring-move-arc").style.strokeDashoffset = Math.max(0, C_MOVE * (1 - mPct));
-    document.getElementById("ring-exercise-arc").style.strokeDashoffset = Math.max(0, C_EXER * (1 - ePct));
-    document.getElementById("ring-stand-arc").style.strokeDashoffset = Math.max(0, C_STAND * (1 - sPct));
-
-    document.getElementById("move-cur").textContent = m.current;
-    document.getElementById("move-goal").textContent = m.goal;
-    document.getElementById("move-pct").textContent = `${Math.round(mPct * 100)}%`;
-
-    document.getElementById("exercise-cur").textContent = e.current;
-    document.getElementById("exercise-goal").textContent = e.goal;
-    document.getElementById("exercise-pct").textContent = `${Math.round(ePct * 100)}%`;
-
-    document.getElementById("stand-cur").textContent = s.current;
-    document.getElementById("stand-goal").textContent = s.goal;
-    document.getElementById("stand-pct").textContent = `${Math.round(sPct * 100)}%`;
-  });
-
-  // 3. Heart Rate State
-  store.subscribe("heartRate", (hr) => {
-    document.getElementById("hr-current-val").textContent = hr.current;
-    document.getElementById("hr-resting-val").textContent = hr.resting;
-    document.getElementById("hr-walking-val").textContent = hr.walkingAvg;
-    document.getElementById("hr-range-val").textContent = `${hr.min}–${hr.max}`;
-
-    // Pulse animation
-    const heartIcon = document.getElementById("live-heart-icon");
-    heartIcon.classList.remove("beating");
-    void heartIcon.offsetWidth; // trigger reflow
-    heartIcon.classList.add("beating");
-
-    renderHrChart(hr.dayCurve, hr.liveHistory);
-  });
-
-  // 4. Sleep State
-  store.subscribe("sleep", (sleep) => {
-    document.getElementById("sleep-score-val").textContent = sleep.score;
-    document.getElementById("sleep-score-desc").textContent = sleep.scoreLabel;
-    document.getElementById("sleep-asleep-val").textContent = sleep.timeAsleep;
-    document.getElementById("sleep-inbed-val").textContent = sleep.timeInBed;
-    document.getElementById("sleep-eff-val").textContent = sleep.efficiency;
-    renderSleepCanvas(sleep);
-  });
-
-  // 5. Body Battery & Stress
-  store.subscribe("bodyBattery", (bb) => {
-    document.getElementById("bb-score").textContent = bb.current;
-    document.getElementById("bb-fill").style.width = `${bb.current}%`;
-    document.getElementById("bb-charge").textContent = bb.charged;
-    document.getElementById("bb-drain").textContent = bb.drained;
-    document.getElementById("bb-status-txt").textContent = bb.status;
-  });
-
-  store.subscribe("stress", (st) => {
-    document.getElementById("stress-score-desc").textContent = `${st.label} (${st.score})`;
-    document.getElementById("stress-rest-pct").textContent = `${st.rest}%`;
-    document.getElementById("stress-low-pct").textContent = `${st.low}%`;
-    document.getElementById("stress-med-pct").textContent = `${st.med}%`;
-    document.getElementById("stress-high-pct").textContent = `${st.high}%`;
-  });
-
-  // 6. Workouts
-  store.subscribe("workouts", (wList) => {
-    renderWorkoutsList(wList);
-  });
-
-  // Trigger initial reactive updates
-  store._notify("rings", store.state.rings);
-  store._notify("heartRate", store.state.heartRate);
-  store._notify("sleep", store.state.sleep);
-  store._notify("bodyBattery", store.state.bodyBattery);
-  store._notify("stress", store.state.stress);
-  store._notify("workouts", store.state.workouts);
-  store._notify("device", store.state.device);
-}
-
-// Render Heart Rate Chart
-function renderHrChart(dayCurve, liveHistory) {
-  const ctx = document.getElementById("hrChartCanvas").getContext("2d");
-
-  const labels = dayCurve.map(d => d.time);
-  const values = dayCurve.map(d => d.val);
-
-  if (hrChart) {
-    hrChart.data.labels = labels;
-    hrChart.data.datasets[0].data = values;
-    hrChart.update("none");
-    return;
+    this.setupRetina();
+    this.bindTouchEvents();
   }
 
-  const gradient = ctx.createLinearGradient(0, 0, 0, 140);
-  gradient.addColorStop(0, "rgba(255, 45, 85, 0.45)");
-  gradient.addColorStop(1, "rgba(255, 45, 85, 0.0)");
+  setupRetina() {
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.width = rect.width - 20;
+    this.height = 120;
 
-  hrChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "BPM",
-        data: values,
-        borderColor: "#FF2D55",
-        borderWidth: 2.2,
-        tension: 0.38,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-        pointHoverBackgroundColor: "#FFFFFF",
-        pointHoverBorderColor: "#FF2D55",
-        fill: true,
-        backgroundColor: gradient
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: "rgba(28, 28, 30, 0.95)",
-          borderColor: "rgba(255, 255, 255, 0.12)",
-          borderWidth: 1,
-          padding: 8,
-          displayColors: false,
-          callbacks: {
-            label: (ctx) => `${ctx.parsed.y} BPM`
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: "#636366", font: { size: 10 }, maxTicksLimit: 6 }
-        },
-        y: {
-          grid: { color: "rgba(255, 255, 255, 0.06)", drawBorder: false },
-          ticks: { color: "#636366", font: { size: 10 } },
-          suggestedMin: 45,
-          suggestedMax: 170
-        }
-      }
+    this.canvas.width = this.width * dpr;
+    this.canvas.height = this.height * dpr;
+    this.canvas.style.width = `${this.width}px`;
+    this.canvas.style.height = `${this.height}px`;
+
+    this.ctx.scale(dpr, dpr);
+  }
+
+  setPoints(points) {
+    this.points = points;
+    this.render();
+  }
+
+  render() {
+    const ctx = this.ctx;
+    const w = this.width;
+    const h = this.height;
+    const pts = this.points;
+
+    ctx.clearRect(0, 0, w, h);
+
+    if (!pts || pts.length < 2) return;
+
+    const minVal = 40;
+    const maxVal = 180;
+    const valRange = maxVal - minVal;
+
+    // Subtle background guidelines
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+    ctx.lineWidth = 1;
+    [60, 100, 140].forEach(bpm => {
+      const y = h - ((bpm - minVal) / valRange) * (h - 20) - 10;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    });
+
+    // Compute pixel coordinates
+    const coords = pts.map((p, i) => {
+      const x = (i / (pts.length - 1)) * w;
+      const y = h - ((p.val - minVal) / valRange) * (h - 24) - 12;
+      return { x, y, val: p.val, time: p.time };
+    });
+
+    // Area Fill Gradient (Ruby Red)
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, "rgba(255, 45, 85, 0.45)");
+    gradient.addColorStop(1, "rgba(255, 45, 85, 0.0)");
+
+    ctx.beginPath();
+    ctx.moveTo(coords[0].x, coords[0].y);
+    for (let i = 0; i < coords.length - 1; i++) {
+      const xc = (coords[i].x + coords[i + 1].x) / 2;
+      const yc = (coords[i].y + coords[i + 1].y) / 2;
+      ctx.quadraticCurveTo(coords[i].x, coords[i].y, xc, yc);
     }
+    ctx.lineTo(coords[coords.length - 1].x, coords[coords.length - 1].y);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Line stroke
+    ctx.beginPath();
+    ctx.moveTo(coords[0].x, coords[0].y);
+    for (let i = 0; i < coords.length - 1; i++) {
+      const xc = (coords[i].x + coords[i + 1].x) / 2;
+      const yc = (coords[i].y + coords[i + 1].y) / 2;
+      ctx.quadraticCurveTo(coords[i].x, coords[i].y, xc, yc);
+    }
+    ctx.lineTo(coords[coords.length - 1].x, coords[coords.length - 1].y);
+    ctx.strokeStyle = "#FF2D55";
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    // Touch Scrubbing Indicator
+    if (this.scrubbingIndex !== null && coords[this.scrubbingIndex]) {
+      const s = coords[this.scrubbingIndex];
+      // Vertical scrub line
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(s.x, 0);
+      ctx.lineTo(s.x, h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Point circle
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fill();
+      ctx.strokeStyle = "#FF2D55";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+  }
+
+  bindTouchEvents() {
+    const handleMove = (clientX) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const pct = x / rect.width;
+      const idx = Math.min(Math.floor(pct * this.points.length), this.points.length - 1);
+      this.scrubbingIndex = idx;
+      this.render();
+
+      const item = this.points[idx];
+      if (item) {
+        document.getElementById("hr-scrub-time").textContent = item.time;
+        document.getElementById("hr-display-bpm").textContent = item.val;
+      }
+    };
+
+    const handleEnd = () => {
+      this.scrubbingIndex = null;
+      this.render();
+      document.getElementById("hr-scrub-time").textContent = "Live";
+      document.getElementById("hr-display-bpm").textContent = AppStore.state.heartRate.current;
+    };
+
+    // Touch Events
+    this.canvas.addEventListener("touchstart", (e) => handleMove(e.touches[0].clientX), { passive: true });
+    this.canvas.addEventListener("touchmove", (e) => handleMove(e.touches[0].clientX), { passive: true });
+    this.canvas.addEventListener("touchend", handleEnd);
+
+    // Mouse Events
+    this.canvas.addEventListener("mousedown", (e) => handleMove(e.clientX));
+    this.canvas.addEventListener("mousemove", (e) => {
+      if (e.buttons === 1) handleMove(e.clientX);
+    });
+    this.canvas.addEventListener("mouseup", handleEnd);
+    this.canvas.addEventListener("mouseleave", handleEnd);
+  }
+}
+
+let nativeHrChart = null;
+
+function initNativeCharts() {
+  nativeHrChart = new NativeHrChart("hrNativeCanvas");
+  window.addEventListener("resize", () => {
+    if (nativeHrChart) {
+      nativeHrChart.setupRetina();
+      nativeHrChart.render();
+    }
+    renderSleepNativeCanvas(AppStore.state.sleep);
   });
 }
 
-// Render Apple Health Sleep Hypnogram Canvas
-function renderSleepCanvas(sleep) {
-  const canvas = document.getElementById("sleepCanvas");
+// -------------------------------------------------------------
+// Native Sleep Hypnogram Canvas
+// -------------------------------------------------------------
+function renderSleepNativeCanvas(sleep) {
+  const canvas = document.getElementById("sleepNativeCanvas");
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  const w = canvas.parentElement.clientWidth - 20;
-  canvas.width = w;
-  const h = canvas.height;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = rect.width - 20;
+  const h = 85;
+
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  ctx.scale(dpr, dpr);
 
   ctx.clearRect(0, 0, w, h);
 
   const stageY = { "Awake": 12, "REM": 32, "Core": 52, "Deep": 72 };
   const stageColors = { "Awake": "#8E8E93", "REM": "#BF5AF2", "Core": "#0A84FF", "Deep": "#0040DD" };
 
-  // Subtle gridlines
   Object.values(stageY).forEach(y => {
     ctx.beginPath();
     ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
@@ -274,7 +267,11 @@ function renderSleepCanvas(sleep) {
 
     ctx.beginPath();
     ctx.fillStyle = col;
-    ctx.roundRect(currX, y - 4, segW, 8, 4);
+    if (ctx.roundRect) {
+      ctx.roundRect(currX, y - 4, segW, 8, 4);
+    } else {
+      ctx.rect(currX, y - 4, segW, 8);
+    }
     ctx.fill();
 
     currX += segW;
@@ -282,69 +279,249 @@ function renderSleepCanvas(sleep) {
   });
 }
 
-// Render Workouts List
-function renderWorkoutsList(wList) {
-  const container = document.getElementById("workouts-container");
-  container.innerHTML = "";
+// -------------------------------------------------------------
+// Reactive State Bindings
+// -------------------------------------------------------------
+function bindReactiveState() {
+  const store = window.AppStore;
 
-  document.getElementById("workout-badge-count").textContent = `${wList.length} total`;
+  // 1. Activity Rings
+  store.subscribe("rings", (rings) => {
+    const mPct = rings.move.current / rings.move.goal;
+    const ePct = rings.exercise.current / rings.exercise.goal;
+    const sPct = rings.stand.current / rings.stand.goal;
+
+    document.getElementById("arc-move").style.strokeDashoffset = Math.max(0, C_MOVE * (1 - mPct));
+    document.getElementById("arc-exercise").style.strokeDashoffset = Math.max(0, C_EXER * (1 - ePct));
+    document.getElementById("arc-stand").style.strokeDashoffset = Math.max(0, C_STAND * (1 - sPct));
+
+    document.getElementById("txt-move-cur").textContent = rings.move.current;
+    document.getElementById("txt-move-goal").textContent = rings.move.goal;
+    document.getElementById("txt-move-pct").textContent = `${Math.round(mPct * 100)}%`;
+
+    document.getElementById("txt-exer-cur").textContent = rings.exercise.current;
+    document.getElementById("txt-exer-goal").textContent = rings.exercise.goal;
+    document.getElementById("txt-exer-pct").textContent = `${Math.round(ePct * 100)}%`;
+
+    document.getElementById("txt-stand-cur").textContent = rings.stand.current;
+    document.getElementById("txt-stand-goal").textContent = rings.stand.goal;
+    document.getElementById("txt-stand-pct").textContent = `${Math.round(sPct * 100)}%`;
+  });
+
+  // 2. Heart Rate
+  store.subscribe("heartRate", (hr) => {
+    document.getElementById("live-bpm-val").textContent = hr.current;
+    document.getElementById("hr-display-bpm").textContent = hr.current;
+    document.getElementById("hr-resting-txt").textContent = hr.resting;
+    document.getElementById("hr-walking-txt").textContent = hr.walkingAvg;
+    document.getElementById("hr-range-txt").textContent = `${hr.min}–${hr.max}`;
+
+    // Heartbeat pulse trigger
+    const heart = document.getElementById("heart-pulse-icon");
+    heart.classList.remove("beat");
+    void heart.offsetWidth;
+    heart.classList.add("beat");
+
+    if (nativeHrChart) {
+      nativeHrChart.setPoints(hr.dayCurve);
+    }
+  });
+
+  // 3. Sleep
+  store.subscribe("sleep", (sleep) => {
+    document.getElementById("sleep-score-txt").textContent = sleep.score;
+    document.getElementById("sleep-label-txt").textContent = sleep.scoreLabel;
+    document.getElementById("sleep-asleep-txt").textContent = sleep.timeAsleep;
+    document.getElementById("sleep-inbed-txt").textContent = sleep.timeInBed;
+    document.getElementById("sleep-eff-txt").textContent = sleep.efficiency;
+    renderSleepNativeCanvas(sleep);
+  });
+
+  // 4. Body Battery & Stress
+  store.subscribe("bodyBattery", (bb) => {
+    document.getElementById("bb-val-txt").textContent = bb.current;
+    document.getElementById("bb-meter-fill").style.width = `${bb.current}%`;
+    document.getElementById("bb-charge-txt").textContent = bb.charged;
+    document.getElementById("bb-drain-txt").textContent = bb.drained;
+    document.getElementById("bb-status-txt").textContent = bb.status;
+  });
+
+  store.subscribe("stress", (st) => {
+    document.getElementById("stress-desc-txt").textContent = `${st.label} (${st.score})`;
+  });
+
+  // 5. Workouts
+  store.subscribe("workouts", (wList) => {
+    renderWorkoutsMobile(wList);
+  });
+
+  // 6. Device BLE
+  store.subscribe("device", (dev) => {
+    const btn = document.getElementById("btn-connect-ble");
+    const name = document.getElementById("ble-name");
+    const batt = document.getElementById("ble-batt");
+    const status = document.getElementById("ble-status");
+
+    name.textContent = dev.name;
+    batt.textContent = `${dev.battery}%`;
+    status.textContent = dev.statusMessage;
+
+    if (dev.connected) {
+      btn.textContent = "Connected";
+      btn.classList.add("connected");
+    } else {
+      btn.textContent = "Connect Watch";
+      btn.classList.remove("connected");
+    }
+  });
+
+  // Initial trigger
+  store._notify("rings", store.state.rings);
+  store._notify("heartRate", store.state.heartRate);
+  store._notify("sleep", store.state.sleep);
+  store._notify("bodyBattery", store.state.bodyBattery);
+  store._notify("stress", store.state.stress);
+  store._notify("workouts", store.state.workouts);
+  store._notify("device", store.state.device);
+}
+
+function renderWorkoutsMobile(wList) {
+  const container = document.getElementById("workout-items-container");
+  container.innerHTML = "";
+  document.getElementById("workouts-count-pill").textContent = `${wList.length} total`;
 
   wList.forEach(w => {
-    const item = document.createElement("div");
-    item.className = "workout-row";
-    item.innerHTML = `
-      <div class="w-left">
-        <div class="w-icon-badge">
+    const div = document.createElement("div");
+    div.className = "workout-item-card";
+    div.innerHTML = `
+      <div class="w-item-left">
+        <div class="w-badge">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="#A4FF00">
             <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
           </svg>
         </div>
         <div>
-          <div class="w-title">${w.type}</div>
-          <div class="w-time-sub">${w.time}</div>
+          <div class="w-name">${w.type}</div>
+          <div class="w-date">${w.time}</div>
         </div>
       </div>
-      <div class="w-right">
-        <div class="w-col"><span class="w-num">${w.calories}</span><span class="w-sub">CAL</span></div>
-        <div class="w-col"><span class="w-num">${w.duration}</span><span class="w-sub">TIME</span></div>
-        ${w.distance !== "--" ? `<div class="w-col"><span class="w-num">${w.distance}</span><span class="w-sub">DIST</span></div>` : ''}
-        <div class="w-col"><span class="w-num hr-num">${w.avgHr}</span><span class="w-sub">AVG HR</span></div>
+      <div class="w-item-right">
+        <div class="w-stat-col"><strong>${w.calories}</strong><span>ACTIVE CAL</span></div>
+        <div class="w-stat-col"><strong>${w.duration}</strong><span>TIME</span></div>
+        <div class="w-stat-col w-hr-col"><strong>${w.avgHr}</strong><span>AVG HR</span></div>
       </div>
     `;
-    container.appendChild(item);
+    container.appendChild(div);
   });
 }
 
-// Setup Event Listeners
-function setupEventListeners() {
+// -------------------------------------------------------------
+// Live Telemetry Engine (Active Streaming by default)
+// -------------------------------------------------------------
+let liveTimer = null;
+let isStreaming = true;
+
+function startLiveTelemetry() {
+  if (liveTimer) return;
+  isStreaming = true;
+  document.getElementById("stream-dot").classList.add("active");
+  document.getElementById("stream-label").textContent = "LIVE STREAM";
+
+  liveTimer = setInterval(() => {
+    // Natural heart rate drift
+    const base = AppStore.state.heartRate.current;
+    const delta = (Math.random() - 0.48) * 3;
+    let nextBpm = Math.round(base + delta);
+    nextBpm = Math.max(52, Math.min(178, nextBpm));
+
+    AppStore.state.heartRate.current = nextBpm;
+    document.getElementById("hr-slider").value = nextBpm;
+    document.getElementById("sim-slider-val").textContent = `${nextBpm} BPM`;
+
+    // Slowly increment Move calories on workout BPMs
+    if (nextBpm > 100) {
+      AppStore.state.rings.move.current += 1;
+    }
+  }, 1200);
+}
+
+function stopLiveTelemetry() {
+  if (liveTimer) {
+    clearInterval(liveTimer);
+    liveTimer = null;
+  }
+  isStreaming = false;
+  document.getElementById("stream-dot").classList.remove("active");
+  document.getElementById("stream-label").textContent = "PAUSED";
+}
+
+// -------------------------------------------------------------
+// Interactive Events & Bottom Tabs
+// -------------------------------------------------------------
+function initInteractiveEvents() {
+  // Slider reactive test control
+  const slider = document.getElementById("hr-slider");
+  const sliderVal = document.getElementById("sim-slider-val");
+
+  slider.addEventListener("input", (e) => {
+    const val = parseInt(e.target.value);
+    sliderVal.textContent = `${val} BPM`;
+    AppStore.state.heartRate.current = val;
+
+    // Reactively update min/max if exceeded
+    if (val > AppStore.state.heartRate.max) AppStore.state.heartRate.max = val;
+    if (val < AppStore.state.heartRate.min) AppStore.state.heartRate.min = val;
+
+    // Trigger haptic vibration on mobile
+    if (navigator.vibrate && val > 150) {
+      navigator.vibrate(25);
+    }
+  });
+
+  // Toggle Live Streaming button
+  const streamBtn = document.getElementById("btn-stream-toggle");
+  streamBtn.addEventListener("click", () => {
+    if (isStreaming) {
+      stopLiveTelemetry();
+    } else {
+      startLiveTelemetry();
+    }
+  });
+
+  // Connect BLE Button
   const btnConnect = document.getElementById("btn-connect-ble");
   btnConnect.addEventListener("click", () => {
-    if (window.BLEController.device && window.BLEController.device.gatt.connected) {
-      window.BLEController.device.gatt.disconnect();
-    } else {
-      window.BLEController.requestConnection();
+    if (window.BLEController) {
+      if (window.BLEController.device && window.BLEController.device.gatt.connected) {
+        window.BLEController.device.gatt.disconnect();
+      } else {
+        window.BLEController.requestConnection();
+      }
     }
   });
 
-  const btnSim = document.getElementById("btn-toggle-sim");
-  btnSim.addEventListener("click", () => {
-    if (window.BLEController.isSimulating) {
-      window.BLEController.stopSimulation();
-      btnSim.classList.remove("active");
-    } else {
-      window.BLEController.startSimulation();
-      btnSim.classList.add("active");
-    }
+  // Bottom Tabs Scrolling
+  const tabButtons = document.querySelectorAll(".tab-item");
+  tabButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      tabButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const targetId = btn.getAttribute("data-target");
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
   });
 
-  // Modal Import File Handling
-  const btnModal = document.getElementById("btn-open-import");
+  // Modal Dialog
   const modal = document.getElementById("import-modal");
+  const openBtn = document.getElementById("btn-open-import");
   const closeBtn = document.getElementById("modal-close-btn");
   const dropzone = document.getElementById("modal-dropzone");
   const fileInput = document.getElementById("fit-file-input");
 
-  btnModal.addEventListener("click", () => modal.classList.add("active"));
+  openBtn.addEventListener("click", () => modal.classList.add("active"));
   closeBtn.addEventListener("click", () => modal.classList.remove("active"));
   modal.addEventListener("click", (e) => {
     if (e.target === modal) modal.classList.remove("active");
@@ -352,47 +529,21 @@ function setupEventListeners() {
 
   dropzone.addEventListener("click", () => fileInput.click());
 
-  dropzone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    dropzone.classList.add("dragover");
-  });
-
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
-
-  dropzone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropzone.classList.remove("dragover");
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleClientFitFile(e.dataTransfer.files[0]);
-    }
-  });
-
   fileInput.addEventListener("change", (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleClientFitFile(e.target.files[0]);
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const res = BrowserFitParser.parseArrayBuffer(evt.target.result);
+          BrowserFitParser.applyToStore(res, file.name);
+          document.getElementById("modal-status").innerHTML = `<span style="color:#30D158">Decoded ${file.name}</span>`;
+          setTimeout(() => modal.classList.remove("active"), 1200);
+        } catch (err) {
+          document.getElementById("modal-status").innerHTML = `<span style="color:#FF453A">Error: ${err.message}</span>`;
+        }
+      };
+      reader.readAsArrayBuffer(file);
     }
   });
-
-  // Window resize re-renders canvas
-  window.addEventListener("resize", () => {
-    renderSleepCanvas(AppStore.state.sleep);
-  });
-}
-
-function handleClientFitFile(file) {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const buffer = e.target.result;
-      const res = BrowserFitParser.parseArrayBuffer(buffer);
-      BrowserFitParser.applyToStore(res, file.name);
-      document.getElementById("modal-status").innerHTML = `<span style="color:#30D158">Decoded ${res.recordsFound} points from ${file.name}</span>`;
-      setTimeout(() => {
-        document.getElementById("import-modal").classList.remove("active");
-      }, 1500);
-    } catch (err) {
-      document.getElementById("modal-status").innerHTML = `<span style="color:#FF453A">Error parsing .FIT: ${err.message}</span>`;
-    }
-  };
-  reader.readAsArrayBuffer(file);
 }

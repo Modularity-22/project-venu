@@ -3,32 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Project Venu • Apple Health Dashboard</title>
+  <title>Project Venu • Apple Health</title>
   
-  <!-- Apple Web App & Mobile PWA Meta -->
+  <!-- Apple iOS Mobile Web App Settings -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Project Venu">
+  <meta name="apple-mobile-web-app-title" content="Venu Health">
   <meta name="theme-color" content="#000000">
 
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="ios-app-wrap">
+  <div class="ios-viewport">
     
-    <!-- iOS / Apple Health Top Header -->
-    <header class="ios-nav-header">
-      <div class="nav-top-meta">
+    <!-- Top Sticky Header -->
+    <header class="app-header">
+      <div class="header-top-row">
         <span class="ios-date" id="header-date">Tuesday, November 10</span>
-        <div class="header-actions">
-          <button class="nav-icon-btn" id="btn-toggle-sim" title="Toggle Live Simulation">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
+        <div class="header-pills">
+          <button class="live-stream-badge" id="btn-stream-toggle" title="Toggle Live Simulation">
+            <span class="live-dot active" id="stream-dot"></span>
+            <span id="stream-label">LIVE STREAM</span>
           </button>
-          <button class="nav-icon-btn" id="btn-open-import" title="Import Garmin .FIT File">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button class="icon-circle-btn" id="btn-open-import" title="Import FIT Log">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
@@ -37,194 +35,233 @@
         </div>
       </div>
 
-      <div class="nav-title-row">
-        <h1 class="ios-title">Summary</h1>
-        <div class="live-hr-pill" id="live-hr-indicator" style="display:none;">
-          <span class="live-pulse-dot"></span>
-          <span id="pill-live-bpm">--</span> <span class="unit-xs">BPM LIVE</span>
+      <div class="title-row">
+        <h1 class="main-title">Summary</h1>
+        <div class="live-hr-badge" id="live-hr-badge">
+          <span class="heart-pulse-icon" id="heart-pulse-icon">❤️</span>
+          <span class="live-bpm-val" id="live-bpm-val">72</span>
+          <span class="live-bpm-unit">BPM</span>
         </div>
       </div>
 
-      <!-- Bluetooth Garmin Venu 3 Pairing Bar -->
-      <div class="ble-bar" id="device-status-pill">
+      <!-- Garmin Venu 3 BLE Connection Banner -->
+      <div class="ble-banner" id="ble-banner">
         <div class="ble-left">
-          <span class="status-dot disconnected" id="status-dot"></span>
-          <div class="ble-info">
-            <div class="ble-name-row">
-              <strong id="device-name">Garmin Venu 3</strong>
-              <span class="battery-tag" id="device-battery-pct">--</span>
+          <div class="ble-avatar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2">
+              <rect x="6" y="2" width="12" height="20" rx="3" ry="3"></rect>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </div>
+          <div class="ble-text">
+            <div class="ble-title-line">
+              <span class="ble-device-name" id="ble-name">Garmin Venu 3</span>
+              <span class="ble-batt-tag" id="ble-batt">84%</span>
             </div>
-            <span class="ble-sub" id="device-status-msg">Tap Connect to pair via Bluetooth</span>
+            <span class="ble-subtext" id="ble-status">Streaming real-time vitals</span>
           </div>
         </div>
-        <button class="btn-connect" id="btn-connect-ble">Connect Watch</button>
+        <button class="ble-action-btn" id="btn-connect-ble">Connect Watch</button>
+      </div>
+
+      <!-- Interactive Reactive Live Heart Rate Slider -->
+      <div class="reactive-controller" id="reactive-controller">
+        <div class="ctrl-header">
+          <span>⚡ Reactive Test Control (Touch to simulate workout):</span>
+          <strong id="sim-slider-val">72 BPM</strong>
+        </div>
+        <input type="range" id="hr-slider" min="50" max="185" value="72" class="ios-slider">
       </div>
     </header>
 
-    <!-- Reactive Apple Health Bento Grid -->
-    <main class="ios-bento">
+    <!-- Main Scrollable Card Stack -->
+    <main class="cards-stack">
 
-      <!-- Card 1: Apple Activity Rings -->
-      <section class="ios-card card-rings">
-        <div class="card-head">
-          <span class="eyebrow">ACTIVITY</span>
-          <h2 class="card-h2">Daily Rings</h2>
+      <!-- CARD 1: Apple Activity Rings (Full Width, Mobile-Optimized) -->
+      <section class="card card-rings" id="card-activity">
+        <div class="card-title-bar">
+          <span class="eyebrow-red">ACTIVITY</span>
+          <span class="card-time" id="rings-time">Today</span>
         </div>
 
-        <div class="rings-wrap">
-          <div class="svg-ring-container">
-            <svg id="rings-svg" viewBox="0 0 240 240" class="rings-svg-el">
+        <div class="rings-mobile-layout">
+          <!-- Concentric SVG Rings -->
+          <div class="rings-svg-box">
+            <svg id="rings-svg" viewBox="0 0 220 220" class="rings-svg-element">
               <defs>
-                <linearGradient id="gMove" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#FF1744"/>
-                  <stop offset="100%" stop-color="#FA114F"/>
+                <linearGradient id="gradMove" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#FF1744" />
+                  <stop offset="100%" stop-color="#FA114F" />
                 </linearGradient>
-                <linearGradient id="gExercise" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#C6FF00"/>
-                  <stop offset="100%" stop-color="#A4FF00"/>
+                <linearGradient id="gradExer" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#D4FF00" />
+                  <stop offset="100%" stop-color="#A4FF00" />
                 </linearGradient>
-                <linearGradient id="gStand" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#00F0FF"/>
-                  <stop offset="100%" stop-color="#00A8FF"/>
+                <linearGradient id="gradStand" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#00F0FF" />
+                  <stop offset="100%" stop-color="#00A8FF" />
                 </linearGradient>
               </defs>
 
-              <!-- Inactive Tracks -->
-              <circle cx="120" cy="120" r="95" class="ring-track track-move" />
-              <circle cx="120" cy="120" r="70" class="ring-track track-exercise" />
-              <circle cx="120" cy="120" r="45" class="ring-track track-stand" />
+              <!-- Inactive Background Tracks -->
+              <circle cx="110" cy="110" r="86" class="r-track track-red" />
+              <circle cx="110" cy="110" r="63" class="r-track track-green" />
+              <circle cx="110" cy="110" r="40" class="r-track track-cyan" />
 
-              <!-- Active Arcs -->
-              <circle id="ring-move-arc" cx="120" cy="120" r="95" class="ring-stroke stroke-move" />
-              <circle id="ring-exercise-arc" cx="120" cy="120" r="70" class="ring-stroke stroke-exercise" />
-              <circle id="ring-stand-arc" cx="120" cy="120" r="45" class="ring-stroke stroke-stand" />
+              <!-- Dynamic Progress Arcs -->
+              <circle id="arc-move" cx="110" cy="110" r="86" class="r-stroke stroke-red" />
+              <circle id="arc-exercise" cx="110" cy="110" r="63" class="r-stroke stroke-green" />
+              <circle id="arc-stand" cx="110" cy="110" r="40" class="r-stroke stroke-cyan" />
             </svg>
           </div>
 
-          <div class="rings-meta-col">
-            <!-- Move -->
-            <div class="ring-metric-row row-move">
-              <span class="metric-dot dot-move"></span>
-              <div class="metric-text-group">
-                <span class="m-label">Move</span>
-                <span class="m-numbers"><strong id="move-cur">542</strong> <span class="m-denom">/ <span id="move-goal">600</span> CAL</span></span>
+          <!-- Vertical Activity Rows -->
+          <div class="rings-legend-list">
+            <div class="ring-row row-move">
+              <div class="row-left">
+                <span class="ring-dot dot-red"></span>
+                <div>
+                  <span class="row-label">Move</span>
+                  <div class="row-metric">
+                    <strong class="col-red" id="txt-move-cur">542</strong>
+                    <span class="row-goal">/ <span id="txt-move-goal">600</span> CAL</span>
+                  </div>
+                </div>
               </div>
-              <span class="m-pct" id="move-pct">90%</span>
+              <span class="row-pct" id="txt-move-pct">90%</span>
             </div>
 
-            <!-- Exercise -->
-            <div class="ring-metric-row row-exercise">
-              <span class="metric-dot dot-exercise"></span>
-              <div class="metric-text-group">
-                <span class="m-label">Exercise</span>
-                <span class="m-numbers"><strong id="exercise-cur">38</strong> <span class="m-denom">/ <span id="exercise-goal">30</span> MIN</span></span>
+            <div class="ring-row row-exer">
+              <div class="row-left">
+                <span class="ring-dot dot-green"></span>
+                <div>
+                  <span class="row-label">Exercise</span>
+                  <div class="row-metric">
+                    <strong class="col-green" id="txt-exer-cur">38</strong>
+                    <span class="row-goal">/ <span id="txt-exer-goal">30</span> MIN</span>
+                  </div>
+                </div>
               </div>
-              <span class="m-pct gold" id="exercise-pct">126%</span>
+              <span class="row-pct pct-gold" id="txt-exer-pct">126%</span>
             </div>
 
-            <!-- Stand -->
-            <div class="ring-metric-row row-stand">
-              <span class="metric-dot dot-stand"></span>
-              <div class="metric-text-group">
-                <span class="m-label">Stand</span>
-                <span class="m-numbers"><strong id="stand-cur">11</strong> <span class="m-denom">/ <span id="stand-goal">12</span> HRS</span></span>
+            <div class="ring-row row-stand">
+              <div class="row-left">
+                <span class="ring-dot dot-cyan"></span>
+                <div>
+                  <span class="row-label">Stand</span>
+                  <div class="row-metric">
+                    <strong class="col-cyan" id="txt-stand-cur">11</strong>
+                    <span class="row-goal">/ <span id="txt-stand-goal">12</span> HRS</span>
+                  </div>
+                </div>
               </div>
-              <span class="m-pct" id="stand-pct">91%</span>
+              <span class="row-pct" id="txt-stand-pct">91%</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Card 2: Apple Health Heart Rate -->
-      <section class="ios-card card-heart">
-        <div class="card-head">
-          <div class="head-icon-title">
-            <div class="glyph-bubble bubble-red" id="live-heart-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#FF2D55">
+      <!-- CARD 2: Apple Health Heart Rate (Interactive Touch Scrubbing) -->
+      <section class="card card-heart" id="card-heart">
+        <div class="card-title-bar">
+          <div class="icon-title">
+            <span class="icon-tag tag-red">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#FF2D55">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
-            </div>
+            </span>
             <div>
-              <span class="eyebrow color-red">HEART</span>
-              <h2 class="card-h2">Heart Rate</h2>
+              <span class="eyebrow-red">HEART</span>
+              <h2 class="card-heading">Heart Rate</h2>
             </div>
           </div>
-          <div class="big-hr-readout">
-            <span id="hr-current-val">72</span> <span class="unit-readout">BPM</span>
+          <div class="scrub-indicator" id="scrub-indicator">
+            <span class="scrub-time" id="hr-scrub-time">Live</span>
+            <span class="scrub-bpm"><strong id="hr-display-bpm">72</strong> <span class="unit-xs">BPM</span></span>
           </div>
         </div>
 
-        <div class="hr-stats-row">
-          <div class="hr-sub-stat">
-            <span class="stat-caption">Resting</span>
-            <span class="stat-val"><strong id="hr-resting-val">58</strong> BPM</span>
+        <div class="metrics-triplet">
+          <div class="triplet-item">
+            <span class="t-caption">Resting</span>
+            <span class="t-val"><strong id="hr-resting-txt">58</strong> <span class="unit-xs">BPM</span></span>
           </div>
-          <div class="hr-sub-stat">
-            <span class="stat-caption">Walking Avg</span>
-            <span class="stat-val"><strong id="hr-walking-val">92</strong> BPM</span>
+          <div class="triplet-item">
+            <span class="t-caption">Walking Avg</span>
+            <span class="t-val"><strong id="hr-walking-txt">92</strong> <span class="unit-xs">BPM</span></span>
           </div>
-          <div class="hr-sub-stat">
-            <span class="stat-caption">Daily Range</span>
-            <span class="stat-val" id="hr-range-val">51–164</span>
+          <div class="triplet-item">
+            <span class="t-caption">Daily Range</span>
+            <span class="t-val" id="hr-range-txt">51–164</span>
           </div>
         </div>
 
-        <div class="chart-box">
-          <canvas id="hrChartCanvas"></canvas>
+        <!-- Pure Native Touch-Scrub Canvas -->
+        <div class="chart-wrapper">
+          <canvas id="hrNativeCanvas"></canvas>
+          <div class="chart-time-labels">
+            <span>12 AM</span>
+            <span>6 AM</span>
+            <span>12 PM</span>
+            <span>6 PM</span>
+            <span>NOW</span>
+          </div>
+          <span class="scrub-hint">👆 Touch and drag chart to inspect any hour</span>
         </div>
       </section>
 
-      <!-- Card 3: Apple Health Sleep Stages Hypnogram -->
-      <section class="ios-card card-sleep">
-        <div class="card-head">
-          <div class="head-icon-title">
-            <div class="glyph-bubble bubble-purple">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#BF5AF2">
+      <!-- CARD 3: Apple Health Sleep Stages Hypnogram -->
+      <section class="card card-sleep" id="card-sleep">
+        <div class="card-title-bar">
+          <div class="icon-title">
+            <span class="icon-tag tag-purple">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#BF5AF2">
                 <path d="M12.3 2a10 10 0 0 0-1.9 19.8 10 10 0 0 0 11.4-11.4A10 10 0 0 0 12.3 2z"/>
               </svg>
-            </div>
+            </span>
             <div>
-              <span class="eyebrow color-purple">SLEEP</span>
-              <h2 class="card-h2">Sleep Stages</h2>
+              <span class="eyebrow-purple">SLEEP</span>
+              <h2 class="card-heading">Sleep Stages</h2>
             </div>
           </div>
-          <div class="score-badge">
-            <span class="score-digit" id="sleep-score-val">86</span>
-            <span class="score-txt" id="sleep-score-desc">Excellent</span>
+          <div class="sleep-score-pill">
+            <span class="score-digit" id="sleep-score-txt">86</span>
+            <span class="score-label" id="sleep-label-txt">Excellent</span>
           </div>
         </div>
 
-        <div class="sleep-summary-stats">
+        <div class="sleep-big-stats">
           <div>
-            <span class="big-sleep-time" id="sleep-asleep-val">7 hr 18 min</span>
-            <span class="sleep-caption">Time Asleep (<span id="sleep-inbed-val">7 hr 45 min</span> in Bed)</span>
+            <span class="sleep-hero-num" id="sleep-asleep-txt">7 hr 18 min</span>
+            <span class="sleep-sub-caption">Time Asleep (<span id="sleep-inbed-txt">7h 45m</span> in Bed)</span>
           </div>
-          <div class="eff-stat">
-            <span class="eff-digit" id="sleep-eff-val">94%</span>
-            <span class="sleep-caption">Efficiency</span>
+          <div class="sleep-right-stat">
+            <span class="eff-num" id="sleep-eff-txt">94%</span>
+            <span class="sleep-sub-caption">Efficiency</span>
           </div>
         </div>
 
-        <!-- Hypnogram Color Legend -->
-        <div class="hypno-legend">
-          <span><span class="legend-dot" style="background:#8E8E93"></span> Awake</span>
-          <span><span class="legend-dot" style="background:#BF5AF2"></span> REM</span>
-          <span><span class="legend-dot" style="background:#0A84FF"></span> Core</span>
-          <span><span class="legend-dot" style="background:#0040DD"></span> Deep</span>
+        <!-- Hypnogram Stages Legend -->
+        <div class="hypno-legend-row">
+          <span><span class="color-dot" style="background:#8E8E93"></span> Awake</span>
+          <span><span class="color-dot" style="background:#BF5AF2"></span> REM</span>
+          <span><span class="color-dot" style="background:#0A84FF"></span> Core</span>
+          <span><span class="color-dot" style="background:#0040DD"></span> Deep</span>
         </div>
 
-        <!-- Visual Segmented Bar -->
-        <div class="sleep-segmented-bar">
-          <div class="seg" style="width: 5%; background:#8E8E93;"></div>
-          <div class="seg" style="width: 23%; background:#BF5AF2;"></div>
-          <div class="seg" style="width: 53%; background:#0A84FF;"></div>
-          <div class="seg" style="width: 19%; background:#0040DD;"></div>
+        <!-- Sleep Stage Proportional Bar -->
+        <div class="sleep-stage-bar">
+          <div class="s-bar-chunk" style="width: 5%; background:#8E8E93;"></div>
+          <div class="s-bar-chunk" style="width: 23%; background:#BF5AF2;"></div>
+          <div class="s-bar-chunk" style="width: 53%; background:#0A84FF;"></div>
+          <div class="s-bar-chunk" style="width: 19%; background:#0040DD;"></div>
         </div>
 
-        <!-- Multi-tier Canvas Hypnogram -->
-        <div class="canvas-wrap">
-          <canvas id="sleepCanvas" height="85"></canvas>
-          <div class="timeline-ticks">
+        <!-- Native Sleep Canvas -->
+        <div class="sleep-canvas-container">
+          <canvas id="sleepNativeCanvas" height="85"></canvas>
+          <div class="sleep-timeline-axis">
             <span>11:15 PM</span>
             <span>1:00 AM</span>
             <span>3:00 AM</span>
@@ -234,150 +271,180 @@
         </div>
       </section>
 
-      <!-- Card 4: Garmin Venu 3 Body Battery & Stress -->
-      <section class="ios-card card-garmin">
-        <div class="card-head">
-          <div class="head-icon-title">
-            <div class="glyph-bubble bubble-green">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2">
+      <!-- CARD 4: Garmin Venu 3 Body Battery & Stress -->
+      <section class="card card-recovery">
+        <div class="card-title-bar">
+          <div class="icon-title">
+            <span class="icon-tag tag-green">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#30D158" stroke-width="2.2">
                 <rect x="2" y="7" width="16" height="10" rx="2" ry="2"></rect>
                 <line x1="22" y1="11" x2="22" y2="13"></line>
               </svg>
-            </div>
+            </span>
             <div>
-              <span class="eyebrow color-green">RECOVERY</span>
-              <h2 class="card-h2">Body Battery & Stress</h2>
+              <span class="eyebrow-green">RECOVERY</span>
+              <h2 class="card-heading">Body Battery & Stress</h2>
             </div>
           </div>
-          <div class="bb-val-badge">
-            <span id="bb-score">74</span> <span class="unit-xs">/ 100</span>
+          <div class="bb-score-pill">
+            <span id="bb-val-txt">74</span> <span class="unit-xs">/ 100</span>
           </div>
         </div>
 
-        <div class="bb-gauge-section">
-          <div class="bb-bar-track">
-            <div class="bb-bar-fill" id="bb-fill" style="width: 74%;"></div>
+        <div class="bb-track-wrap">
+          <div class="bb-track-bg">
+            <div class="bb-track-active" id="bb-meter-fill" style="width: 74%;"></div>
           </div>
-          <div class="bb-legend-row">
-            <span class="c-green">+<span id="bb-charge">62</span> Charged</span>
-            <span class="c-gray" id="bb-status-txt">Good Recovery</span>
-            <span class="c-red">-<span id="bb-drain">32</span> Drained</span>
+          <div class="bb-meta-row">
+            <span class="col-green">+<span id="bb-charge-txt">62</span> Charged</span>
+            <span class="col-gray" id="bb-status-txt">Good Recovery</span>
+            <span class="col-red">-<span id="bb-drain-txt">32</span> Drained</span>
           </div>
         </div>
 
-        <div class="stress-container">
-          <div class="stress-header">
-            <span>Stress Level: <strong id="stress-score-desc">Restful (22)</strong></span>
+        <div class="stress-box">
+          <div class="stress-head-line">
+            <span>Daily Stress: <strong id="stress-desc-txt">Restful (22)</strong></span>
           </div>
-          <div class="stress-multi-bar">
-            <div class="s-chunk chunk-rest" style="width: 70%;"></div>
-            <div class="s-chunk chunk-low" style="width: 20%;"></div>
-            <div class="s-chunk chunk-med" style="width: 8%;"></div>
-            <div class="s-chunk chunk-high" style="width: 2%;"></div>
+          <div class="stress-quad-bar">
+            <div class="q-chunk q-rest" style="width: 70%;"></div>
+            <div class="q-chunk q-low" style="width: 20%;"></div>
+            <div class="q-chunk q-med" style="width: 8%;"></div>
+            <div class="q-chunk q-high" style="width: 2%;"></div>
           </div>
-          <div class="stress-legend-row">
-            <span><span class="s-dot dot-rest"></span> Rest <strong id="stress-rest-pct">70%</strong></span>
-            <span><span class="s-dot dot-low"></span> Low <strong id="stress-low-pct">20%</strong></span>
-            <span><span class="s-dot dot-med"></span> Med <strong id="stress-med-pct">8%</strong></span>
-            <span><span class="s-dot dot-high"></span> High <strong id="stress-high-pct">2%</strong></span>
+          <div class="stress-row-legend">
+            <span><span class="q-dot dot-rest"></span> Rest 70%</span>
+            <span><span class="q-dot dot-low"></span> Low 20%</span>
+            <span><span class="q-dot dot-med"></span> Med 8%</span>
+            <span><span class="q-dot dot-high"></span> High 2%</span>
           </div>
         </div>
       </section>
 
-      <!-- Card 5: Vitals Overview -->
-      <section class="ios-card card-vitals">
-        <div class="card-head">
-          <div class="head-icon-title">
-            <div class="glyph-bubble bubble-cyan">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64D2FF" stroke-width="2">
+      <!-- CARD 5: Respiratory & Vitals Overview -->
+      <section class="card card-vitals-grid">
+        <div class="card-title-bar">
+          <div class="icon-title">
+            <span class="icon-tag tag-cyan">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64D2FF" stroke-width="2.2">
                 <circle cx="12" cy="12" r="10"></circle>
                 <path d="M8 12s1.5-2 4-2 4 2 4 2"></path>
               </svg>
-            </div>
+            </span>
             <div>
-              <span class="eyebrow color-cyan">RESPIRATORY</span>
-              <h2 class="card-h2">Vitals</h2>
+              <span class="eyebrow-cyan">RESPIRATORY</span>
+              <h2 class="card-heading">Vitals Overview</h2>
             </div>
           </div>
         </div>
 
-        <div class="vitals-2x2-grid">
-          <div class="v-card">
-            <span class="v-title">Blood Oxygen (SpO2)</span>
-            <span class="v-primary-val">98%</span>
-            <span class="v-footnote">Daily avg: 97.8%</span>
+        <div class="vitals-tiles-2x2">
+          <div class="v-tile">
+            <span class="v-caption">Blood Oxygen (SpO2)</span>
+            <span class="v-main-num">98%</span>
+            <span class="v-footnote">Overnight: 97.8%</span>
           </div>
-          <div class="v-card">
-            <span class="v-title">Respiration</span>
-            <span class="v-primary-val">14 <span class="unit-xs">brpm</span></span>
-            <span class="v-footnote">Sleep avg: 12.8</span>
+          <div class="v-tile">
+            <span class="v-caption">Respiration</span>
+            <span class="v-main-num">14 <span class="unit-xs">brpm</span></span>
+            <span class="v-footnote">Sleep: 12.8 brpm</span>
           </div>
-          <div class="v-card">
-            <span class="v-title">HRV Status</span>
-            <span class="v-primary-val color-green">68 <span class="unit-xs">ms</span></span>
+          <div class="v-tile">
+            <span class="v-caption">HRV Status</span>
+            <span class="v-main-num col-green">68 <span class="unit-xs">ms</span></span>
             <span class="v-footnote">Balanced baseline</span>
           </div>
-          <div class="v-card">
-            <span class="v-title">Skin Temp</span>
-            <span class="v-primary-val">-0.1°C</span>
-            <span class="v-footnote">Within normal range</span>
+          <div class="v-tile">
+            <span class="v-caption">Skin Temp</span>
+            <span class="v-main-num">-0.1°C</span>
+            <span class="v-footnote">Normal variation</span>
           </div>
         </div>
       </section>
 
-      <!-- Card 6: Workouts & Activities -->
-      <section class="ios-card card-workouts">
-        <div class="card-head">
-          <div class="head-icon-title">
-            <div class="glyph-bubble bubble-lime">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#A4FF00">
+      <!-- CARD 6: Apple Fitness Recorded Workouts -->
+      <section class="card card-workouts-list" id="card-workouts">
+        <div class="card-title-bar">
+          <div class="icon-title">
+            <span class="icon-tag tag-lime">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#A4FF00">
                 <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
               </svg>
-            </div>
+            </span>
             <div>
-              <span class="eyebrow color-lime">WORKOUTS</span>
-              <h2 class="card-h2">Activities</h2>
+              <span class="eyebrow-lime">WORKOUTS</span>
+              <h2 class="card-heading">Activities</h2>
             </div>
           </div>
-          <span class="tag-counter" id="workout-badge-count">2 total</span>
+          <span class="workouts-count-pill" id="workouts-count-pill">2 total</span>
         </div>
 
-        <div class="workout-items-list" id="workouts-container">
+        <div class="workout-items-container" id="workout-items-container">
           <!-- Populated reactively -->
         </div>
       </section>
 
     </main>
 
+    <!-- Bottom iOS Floating Tab Navigation -->
+    <nav class="ios-tab-bar">
+      <button class="tab-item active" data-target="card-activity">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <circle cx="12" cy="12" r="6"></circle>
+          <circle cx="12" cy="12" r="2"></circle>
+        </svg>
+        <span>Activity</span>
+      </button>
+      <button class="tab-item" data-target="card-heart">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+        <span>Heart</span>
+      </button>
+      <button class="tab-item" data-target="card-sleep">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12.3 2a10 10 0 0 0-1.9 19.8 10 10 0 0 0 11.4-11.4A10 10 0 0 0 12.3 2z"/>
+        </svg>
+        <span>Sleep</span>
+      </button>
+      <button class="tab-item" data-target="card-workouts">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <span>Workouts</span>
+      </button>
+    </nav>
+
     <!-- Modal for .FIT File Upload -->
-    <div class="ios-modal-overlay" id="import-modal">
-      <div class="ios-modal-sheet">
-        <div class="modal-sheet-header">
-          <h3>Import Garmin .FIT Files</h3>
-          <button class="sheet-close" id="modal-close-btn">&times;</button>
+    <div class="ios-modal-backdrop" id="import-modal">
+      <div class="ios-modal-dialog">
+        <div class="dialog-header">
+          <h3>Import Garmin Logs (.FIT)</h3>
+          <button class="dialog-close" id="modal-close-btn">&times;</button>
         </div>
-        <p class="modal-sub">
-          Select or drop a <strong>.FIT</strong> log file from your watch or computer. It will be decoded directly in your browser.
+        <p class="dialog-desc">
+          Upload any <strong>.FIT</strong> log file from your Garmin Venu 3. It will decode instantly directly in your browser.
         </p>
 
-        <div class="dropzone-box" id="modal-dropzone">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2">
+        <div class="file-drop-card" id="modal-dropzone">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="17 8 12 3 7 8"></polyline>
             <line x1="12" y1="3" x2="12" y2="15"></line>
           </svg>
-          <p>Drop <strong>.FIT</strong> file here</p>
-          <span>or tap to browse files</span>
+          <strong class="drop-label">Choose or Drop .FIT File</strong>
+          <span class="drop-sub">Tap here to browse from your device</span>
           <input type="file" id="fit-file-input" accept=".fit,.FIT" style="display:none;">
         </div>
 
-        <div class="modal-status-text" id="modal-status"></div>
+        <div class="dialog-status" id="modal-status"></div>
       </div>
     </div>
 
   </div>
 
-  <!-- Application Logic Scripts -->
+  <!-- JavaScript Modules -->
   <script src="js/state.js"></script>
   <script src="js/fit-parser.js"></script>
   <script src="js/bluetooth.js"></script>

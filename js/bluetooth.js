@@ -1,5 +1,5 @@
 // Project Venu - Web Bluetooth & Garmin Venu 3 BLE Controller
-// Supports Standard Bluetooth SIG GATT: Heart Rate (0x180D), Battery (0x180F), Device Info (0x180A)
+// Standard Bluetooth SIG GATT: Heart Rate (0x180D), Battery (0x180F), Device Info (0x180A)
 
 class GarminBLEController {
   constructor() {
@@ -12,7 +12,7 @@ class GarminBLEController {
   }
 
   isSupported() {
-    return 'bluetooth' in navigator;
+    return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
   }
 
   // Check if device was previously paired and auto-reconnect
@@ -42,8 +42,10 @@ class GarminBLEController {
   // Request user authorization & scan for Garmin Bluetooth broadcast
   async requestConnection() {
     if (!this.isSupported()) {
-      alert("Web Bluetooth is not supported in this browser. If on iOS, please use the Bluefy or WebBLE browser. Enabling simulated live mode.");
-      this.startSimulation();
+      AppStore.state.device.statusMessage = "iOS Safari blocks BLE. Use 'Bluefy' app or enjoy the live stream!";
+      if (window.startLiveTelemetry) {
+        window.startLiveTelemetry();
+      }
       return;
     }
 
@@ -108,7 +110,7 @@ class GarminBLEController {
           AppStore.state.device.battery = e.target.value.getUint8(0);
         });
       } catch (bErr) {
-        console.warn("Battery service not available:", bErr);
+        console.warn("Battery service skip:", bErr);
       }
 
       // 3. Device Info (Model Name)
@@ -135,7 +137,7 @@ class GarminBLEController {
       console.error("GATT connection failed:", err);
       AppStore.state.device.connected = false;
       AppStore.state.device.connecting = false;
-      AppStore.state.device.statusMessage = "Failed to connect to watch GATT.";
+      AppStore.state.device.statusMessage = "Connection failed. Please ensure watch is nearby.";
       return false;
     }
   }
@@ -144,7 +146,6 @@ class GarminBLEController {
     const data = event.target.value;
     const flags = data.getUint8(0);
 
-    // Bit 0 determines format: 0 = UINT8, 1 = UINT16
     let hr;
     let offset = 1;
     if ((flags & 0x01) === 0) {
@@ -155,17 +156,7 @@ class GarminBLEController {
       offset += 2;
     }
 
-    // Contact detection (bit 1 & 2)
     const contactDetected = (flags & 0x06) === 0x06;
-
-    // RR-interval / HRV (bit 4)
-    let rrInterval = null;
-    if (flags & 0x10) {
-      // RR intervals follow
-      if (data.byteLength >= offset + 2) {
-        rrInterval = data.getUint16(offset, true) / 1024 * 1000; // in ms
-      }
-    }
 
     // Update Reactive App Store
     AppStore.state.device.liveHr = hr;
@@ -173,7 +164,6 @@ class GarminBLEController {
     AppStore.state.device.lastBeat = Date.now();
     AppStore.state.heartRate.current = hr;
 
-    // Dynamic min/max
     if (hr < AppStore.state.heartRate.min && hr > 40) {
       AppStore.state.heartRate.min = hr;
     }
@@ -181,19 +171,11 @@ class GarminBLEController {
       AppStore.state.heartRate.max = hr;
     }
 
-    // Update Move Calories slightly on active heart rates
     if (hr > 100) {
       AppStore.state.rings.move.current += 1;
     }
 
-    // Push into real-time history
-    const hist = [...AppStore.state.heartRate.liveHistory];
-    hist.push(hr);
-    if (hist.length > 20) hist.shift();
-    AppStore.state.heartRate.liveHistory = hist;
-
-    // Trigger haptic feedback if supported on mobile
-    if (navigator.vibrate && hr > 140) {
+    if (navigator.vibrate && hr > 145) {
       navigator.vibrate(20);
     }
   }
@@ -202,44 +184,7 @@ class GarminBLEController {
     console.warn("Garmin device disconnected.");
     AppStore.state.device.connected = false;
     AppStore.state.device.connecting = false;
-    AppStore.state.device.statusMessage = "Garmin Venu 3 disconnected. Tap to reconnect.";
-  }
-
-  // Simulation fallback for browser without BLE or during testing
-  startSimulation() {
-    if (this.isSimulating) return;
-    this.isSimulating = true;
-
-    AppStore.state.device.connected = true;
-    AppStore.state.device.connectionType = "simulated";
-    AppStore.state.device.name = "Garmin Venu 3 (Live Sim)";
-    AppStore.state.device.statusMessage = "Simulated Real-Time Heart Rate Stream";
-
-    this.simulationInterval = setInterval(() => {
-      const base = 72;
-      const variation = Math.sin(Date.now() / 4000) * 8 + (Math.random() * 4 - 2);
-      const simulatedBpm = Math.round(base + variation);
-
-      AppStore.state.device.liveHr = simulatedBpm;
-      AppStore.state.device.lastBeat = Date.now();
-      AppStore.state.heartRate.current = simulatedBpm;
-
-      const hist = [...AppStore.state.heartRate.liveHistory];
-      hist.push(simulatedBpm);
-      if (hist.length > 20) hist.shift();
-      AppStore.state.heartRate.liveHistory = hist;
-    }, 1000);
-  }
-
-  stopSimulation() {
-    if (this.simulationInterval) {
-      clearInterval(this.simulationInterval);
-      this.simulationInterval = null;
-    }
-    this.isSimulating = false;
-    AppStore.state.device.connected = false;
-    AppStore.state.device.connectionType = "none";
-    AppStore.state.device.statusMessage = "Simulation paused.";
+    AppStore.state.device.statusMessage = "Watch disconnected. Tap to reconnect.";
   }
 }
 
