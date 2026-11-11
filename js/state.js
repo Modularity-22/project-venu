@@ -1,10 +1,21 @@
-// Project Venu - Reactive State Store (Clean Real Data Only)
-// No Mock or Fake Numbers - Shows Only Actual Watch Readings
+// Project Venu - Fixed Reactive State Store (Clean Real Data Only)
 
 class ReactiveStore {
   constructor(initialState) {
+    this.rawState = initialState;
     this.subscribers = new Map();
     this.state = this._createProxy(initialState, "");
+  }
+
+  _getByPath(path) {
+    if (!path) return this.state;
+    const parts = path.split(".");
+    let cur = this.state;
+    for (const p of parts) {
+      if (cur == null) return undefined;
+      cur = cur[p];
+    }
+    return cur;
   }
 
   _createProxy(obj, path) {
@@ -12,7 +23,7 @@ class ReactiveStore {
     return new Proxy(obj, {
       get(target, prop) {
         const val = target[prop];
-        if (val !== null && typeof val === "object" && !(val instanceof ArrayBuffer)) {
+        if (val !== null && typeof val === "object" && !(val instanceof ArrayBuffer) && !Array.isArray(val)) {
           const subPath = path ? `${path}.${String(prop)}` : String(prop);
           return self._createProxy(val, subPath);
         }
@@ -29,17 +40,19 @@ class ReactiveStore {
 
   _notify(path, value) {
     if (this.subscribers.has(path)) {
-      this.subscribers.get(path).forEach(cb => cb(value, path));
+      const targetVal = this._getByPath(path);
+      this.subscribers.get(path).forEach(cb => cb(targetVal, path));
     }
     const segments = path.split(".");
     for (let i = 1; i < segments.length; i++) {
       const parentPath = segments.slice(0, i).join(".");
       if (this.subscribers.has(parentPath)) {
-        this.subscribers.get(parentPath).forEach(cb => cb(value, path));
+        const parentObj = this._getByPath(parentPath);
+        this.subscribers.get(parentPath).forEach(cb => cb(parentObj, path));
       }
     }
     if (this.subscribers.has("*")) {
-      this.subscribers.get("*").forEach(cb => cb(value, path));
+      this.subscribers.get("*").forEach(cb => cb(this.state, path));
     }
   }
 
@@ -57,13 +70,13 @@ const defaultState = {
   device: {
     connected: false,
     connecting: false,
-    name: "Garmin Venu 3",
+    name: "Venu 3",
     battery: null,
     liveHr: null,
     sensorContact: false,
     lastBeat: null,
     connectionType: "none",
-    statusMessage: "Searching for paired Garmin Venu 3..."
+    statusMessage: "Tap 'Connect Watch' to pair Venu 3"
   },
   rings: {
     move: { current: 0, goal: 600, unit: "CAL", color: "#FA114F" },
@@ -77,7 +90,13 @@ const defaultState = {
     min: null,
     max: null,
     liveHistory: [],
-    dayCurve: [] // Only populated with real readings
+    dayCurve: [],
+    rrMs: null
+  },
+  rsc: {
+    speedKmh: null,
+    cadenceSpm: null,
+    isRunning: false
   },
   sleep: {
     score: null,

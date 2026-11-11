@@ -316,7 +316,7 @@ function bindReactiveState() {
     document.getElementById("arc-exercise").style.strokeDashoffset = Math.max(0, C_EXER * (1 - ePct));
     document.getElementById("arc-stand").style.strokeDashoffset = Math.max(0, C_STAND * (1 - sPct));
 
-    document.getElementById("txt-move-cur").textContent = m.current;
+    document.getElementById("txt-move-cur").textContent = Math.round(m.current);
     document.getElementById("txt-move-goal").textContent = m.goal;
     document.getElementById("txt-move-pct").textContent = `${Math.round(mPct * 100)}%`;
 
@@ -393,9 +393,21 @@ function bindReactiveState() {
       btn.textContent = "Connected";
       btn.classList.add("connected");
       document.getElementById("live-hr-badge").style.display = "flex";
+    } else if (dev.connecting) {
+      btn.textContent = "Connecting...";
+      btn.classList.remove("connected");
+      document.getElementById("live-hr-badge").style.display = "none";
     } else {
       btn.textContent = "Connect Watch";
       btn.classList.remove("connected");
+      document.getElementById("live-hr-badge").style.display = "none";
+    }
+  });
+
+  // 7. Live Running Speed & Cadence (0x1814)
+  store.subscribe("rsc", (rsc) => {
+    if (rsc.cadenceSpm !== null && AppStore.state.device.connected) {
+      document.getElementById("ble-status").textContent = `Live • Cadence: ${rsc.cadenceSpm} spm • Speed: ${rsc.speedKmh} km/h`;
     }
   });
 
